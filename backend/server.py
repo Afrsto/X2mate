@@ -65,6 +65,10 @@ def _init_youtube_cookies() -> str | None:
                 return None
     if not raw:
         return None
+    raw = raw.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+    if "Netscape" not in raw.split("\n", 1)[0] and not raw.lstrip().startswith("#"):
+        # Accept files that start with cookie rows; yt-dlp wants Netscape header
+        raw = "# Netscape HTTP Cookie File\n" + raw
     fd, path = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
