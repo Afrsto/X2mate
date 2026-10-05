@@ -252,8 +252,11 @@ def probe_capabilities(yt_url: str) -> dict:
     if not _YTDLP_OK:
         raise RuntimeError("yt-dlp is not installed.")
     opts = _base_opts()
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(yt_url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(yt_url, download=False)
+    except DownloadError as e:
+        raise RuntimeError(_ytdlp_error(str(e))) from e
     formats = (info or {}).get("formats") or []
     heights: set[int] = set()
     abrs: list[float] = []
