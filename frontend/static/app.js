@@ -278,6 +278,10 @@
   log("✓ ready — paste a YouTube link…");
   if (API_BASE) {
     log(`── API: ${API_BASE}`);
+  } else if (/vercel\.app$/i.test(location.hostname) || location.hostname !== "127.0.0.1") {
+    log("⚠ No backend URL set. Host backend/ and set window.__API_BASE__ in config.js");
+    $("#sys-status").textContent = "backend not configured";
+    btnDl.disabled = true;
   }
   refreshStatus();
   setInterval(refreshStatus, 30000);
