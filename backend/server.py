@@ -379,7 +379,7 @@ def search(query: str, limit: int = 12) -> list[dict]:
             {
                 "id": vid,
                 "url": f"https://www.youtube.com/watch?v={vid}",
-                "title": e.get("title") or "Untitled",
+                "title": sanitize(e.get("title") or "Untitled"),
                 "uploader": e.get("uploader") or e.get("channel") or "",
                 "duration": e.get("duration"),
                 "thumbnail": thumb,
