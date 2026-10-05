@@ -40,7 +40,15 @@ _FFMPEG_OK = bool(_FFMPEG and os.path.isfile(_FFMPEG))
 APP_VERSION = "1.1.0"
 VIDEO_HEIGHTS = (144, 240, 360, 480, 720, 1080, 1440, 2160)
 AUDIO_BITRATES = (64, 96, 128, 160, 192, 256, 320)
-_YOUTUBE_CLIENTS = "android_vr,ios,web_safari,web_embedded"
+_YOUTUBE_CLIENTS = [
+    "android",
+    "android_vr",
+    "ios",
+    "mweb",
+    "web_safari",
+    "web_embedded",
+    "tv",
+]
 _COOKIE_FILE: str | None = None
 
 
@@ -169,7 +177,7 @@ def _base_opts(*, skip_download: bool = True) -> dict:
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "extractor_args": {"youtube": {"player_client": [_YOUTUBE_CLIENTS]}},
+        "extractor_args": {"youtube": {"player_client": list(_YOUTUBE_CLIENTS)}},
     }
     if skip_download:
         opts["skip_download"] = True
@@ -484,6 +492,7 @@ def system_status():
             "ytdlp_ok": _YTDLP_OK,
             "ytdlp_ver": _YTDLP_VER,
             "ffmpeg_ok": _FFMPEG_OK,
+            "cookies_loaded": bool(_COOKIE_FILE),
             "python": platform.python_version(),
         }
     )
