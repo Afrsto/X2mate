@@ -1,20 +1,21 @@
-# X2mate
+﻿# X2mate
 
 YouTube → **M4A** / **MP4** web downloader.
 
 | Part | Role |
 |------|------|
-| [`frontend/`](frontend/) | Static UI hosted on **Vercel** |
-| [`backend/`](backend/) | Flask + yt-dlp API on **Render** (Docker + ffmpeg) |
+| [`frontend/`](frontend/) | Static UI on **Vercel** (https://x2mate.vercel.app) |
+| [`backend/`](backend/) | Flask + yt-dlp API (Docker + ffmpeg) |
 
-**Live:** https://x2mate.vercel.app
+**Live frontend:** https://x2mate.vercel.app  
+**Live API:** https://x2mate-api-production.up.railway.app
 
 ## Frontend (Vercel)
 
 Root directory: `frontend`. Build injects the API URL from env:
 
 ```text
-X2MATE_API_URL=https://your-render-service.onrender.com
+X2MATE_API_URL=https://x2mate-api-production.up.railway.app
 ```
 
 ```powershell
@@ -22,9 +23,19 @@ cd frontend
 npx vercel --prod --scope x2-salah
 ```
 
-## Backend (Render)
+## Backend
 
-See [`backend/README.md`](backend/README.md). Blueprint: [`render.yaml`](render.yaml).
+Docker image with ffmpeg — see [`backend/Dockerfile`](backend/Dockerfile) and [`render.yaml`](render.yaml) for a Render Blueprint deploy.
+
+> **Render note:** Creating a new Render Web Service currently requires a payment card on the account (`dashboard.render.com/billing`). Until then the API runs on Railway at the URL above.
+
+### Local
+
+```powershell
+cd backend
+pip install -r requirements.txt
+python server.py
+```
 
 ## Contacts
 
