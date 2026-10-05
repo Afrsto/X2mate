@@ -37,7 +37,7 @@ except ImportError:
 _FFMPEG = shutil.which("ffmpeg")
 _FFMPEG_OK = bool(_FFMPEG and os.path.isfile(_FFMPEG))
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 VIDEO_HEIGHTS = (144, 240, 360, 480, 720, 1080, 1440, 2160)
 AUDIO_BITRATES = (64, 96, 128, 160, 192, 256, 320)
 _YOUTUBE_CLIENTS = [

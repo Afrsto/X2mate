@@ -143,7 +143,7 @@
       $("#sys-status").textContent =
         statusRetries <= 3
           ? "Connecting to backend…"
-          : "API unreachable — backend may be sleeping";
+          : "Backend unreachable — try again shortly";
       btnDl.disabled = true;
     }
   }
@@ -266,7 +266,7 @@
       return;
     }
     if (!API_BASE) {
-      setSearchStatus("Backend not configured — set API URL first", "err");
+      setSearchStatus("Backend not configured", "err");
       return;
     }
 
@@ -355,17 +355,16 @@
   $("#btn-about").addEventListener("click", () => {
     showModal(
       "About",
-      `X2mate v${window.APP.version}\n\nWeb UI — Vercel frontend + separate yt-dlp backend.\n\n• M4A audio / MP4 video\n• Size confirmation before download\n• Files save to your browser Downloads folder\n\nGitHub: ${window.APP.github}`,
+      `X2mate v${window.APP.version}\n\nYouTube → M4A / MP4 downloader.\n\n• M4A audio / MP4 video\n• Size confirmation before download\n• Files save to your browser Downloads folder\n\nGitHub: ${window.APP.github}`,
       { yesNo: false }
     );
   });
 
   log("✓ ready — paste a YouTube link…");
   if (API_BASE) {
-    log(`── API: ${API_BASE}`);
     $("#sys-status").textContent = "Connecting to backend…";
   } else if (/vercel\.app$/i.test(location.hostname) || (location.hostname !== "127.0.0.1" && location.hostname !== "localhost")) {
-    log("⚠ No backend URL set. Host backend/ and set window.__API_BASE__ in config.js");
+    log("⚠ Backend not configured");
     $("#sys-status").textContent = "backend not configured";
     btnDl.disabled = true;
   }

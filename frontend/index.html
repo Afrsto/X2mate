@@ -3,95 +3,122 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>X2mate v1.1.0 · yt-dlp</title>
+  <title>X2mate v1.2.0 · YouTube Downloader</title>
+  <meta name="description" content="X2mate — download YouTube as M4A audio or MP4 video. Fast, simple, and free.">
+  <meta name="theme-color" content="#c62828">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="X2mate">
+  <meta property="og:title" content="X2mate — YouTube to M4A / MP4">
+  <meta property="og:description" content="Download YouTube as M4A audio or MP4 video. Paste a link, pick quality, save to Downloads.">
+  <meta property="og:url" content="https://x2mate.vercel.app/">
+  <meta property="og:image" content="https://x2mate.vercel.app/static/og.png?v=1.2.0">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="X2mate — YouTube to M4A / MP4">
+  <meta name="twitter:description" content="Download YouTube as M4A audio or MP4 video. Paste a link, pick quality, save to Downloads.">
+  <meta name="twitter:image" content="https://x2mate.vercel.app/static/og.png?v=1.2.0">
+
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header class="header">
-    <div class="brand">
-      <h1>X2mate v1.1.0</h1>
-      <span class="brand-sub">· yt-dlp</span>
-    </div>
-    <div id="sys-status" class="sys-status">checking…</div>
-  </header>
-
-  <main class="card">
-    <div class="row">
-      <label>URL</label>
-      <div class="url-row">
-        <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=…">
-        <button id="btn-search" class="btn btn-acc">Search Video</button>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <h1>X2mate</h1>
+        <span class="brand-ver">v1.2.0</span>
+        <span class="brand-sub">yt-dlp</span>
       </div>
-    </div>
+      <div id="sys-status" class="sys-status">checking…</div>
+    </header>
 
-    <div class="row">
-      <label>Format</label>
-      <div class="seg" id="fmt-seg">
-        <button class="seg-btn active" data-fmt="mp3">M4A · audio</button>
-        <button class="seg-btn" data-fmt="mp4">MP4 · video</button>
-      </div>
-    </div>
-
-    <div class="row">
-      <label>Quality</label>
-      <div id="quality-mp3" class="quality">
-        <label class="radio"><input type="radio" name="qmp3" value="64"> 64 kbps</label>
-        <label class="radio"><input type="radio" name="qmp3" value="96"> 96 kbps</label>
-        <label class="radio"><input type="radio" name="qmp3" value="128"> 128 kbps</label>
-        <label class="radio"><input type="radio" name="qmp3" value="160"> 160 kbps</label>
-        <label class="radio"><input type="radio" name="qmp3" value="192"> 192 kbps</label>
-        <label class="radio"><input type="radio" name="qmp3" value="256"> 256 kbps</label>
-        <label class="radio"><input type="radio" name="qmp3" value="320" checked> 320 kbps</label>
-      </div>
-      <div id="quality-mp4" class="quality hidden">
-        <div class="quality-row">
-          <label class="radio"><input type="radio" name="qmp4" value="144"> 144p</label>
-          <label class="radio"><input type="radio" name="qmp4" value="240"> 240p</label>
-          <label class="radio"><input type="radio" name="qmp4" value="360"> 360p</label>
-          <label class="radio"><input type="radio" name="qmp4" value="480"> 480p</label>
-        </div>
-        <div class="quality-row">
-          <label class="radio"><input type="radio" name="qmp4" value="720"> 720p</label>
-          <label class="radio"><input type="radio" name="qmp4" value="1080" checked> 1080p</label>
-          <label class="radio"><input type="radio" name="qmp4" value="1440"> 1440p (2K)</label>
-          <label class="radio"><input type="radio" name="qmp4" value="2160"> 2160p (4K)</label>
+    <main class="panel">
+      <div class="row">
+        <label for="url">URL</label>
+        <div class="url-row">
+          <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" spellcheck="false">
+          <button id="btn-search" class="btn btn-acc" type="button">Search Video</button>
         </div>
       </div>
-    </div>
-  </main>
 
-  <section class="actions">
-    <button id="btn-dl" class="btn btn-acc btn-lg" disabled>⬇ Download</button>
-    <button id="btn-stop" class="btn btn-acc2 btn-lg" disabled>■ Stop</button>
-    <button id="btn-clear" class="btn btn-muted">clear log</button>
-    <div class="progress-wrap">
-      <div class="progress"><div id="progress-bar"></div></div>
-      <div id="progress-label" class="progress-label">idle</div>
-    </div>
-  </section>
+      <div class="row">
+        <span class="field-label">Format</span>
+        <div class="seg" id="fmt-seg" role="group" aria-label="Format">
+          <button class="seg-btn active" type="button" data-fmt="mp3">M4A · audio</button>
+          <button class="seg-btn" type="button" data-fmt="mp4">MP4 · video</button>
+        </div>
+      </div>
 
-  <section class="console">
-    <div class="console-title">console</div>
-    <pre id="log"></pre>
-  </section>
+      <div class="row">
+        <span class="field-label">Quality</span>
+        <div id="quality-mp3" class="quality">
+          <label class="radio"><input type="radio" name="qmp3" value="64"> 64 kbps</label>
+          <label class="radio"><input type="radio" name="qmp3" value="96"> 96 kbps</label>
+          <label class="radio"><input type="radio" name="qmp3" value="128"> 128 kbps</label>
+          <label class="radio"><input type="radio" name="qmp3" value="160"> 160 kbps</label>
+          <label class="radio"><input type="radio" name="qmp3" value="192"> 192 kbps</label>
+          <label class="radio"><input type="radio" name="qmp3" value="256"> 256 kbps</label>
+          <label class="radio"><input type="radio" name="qmp3" value="320" checked> 320 kbps</label>
+        </div>
+        <div id="quality-mp4" class="quality hidden">
+          <div class="quality-row">
+            <label class="radio"><input type="radio" name="qmp4" value="144"> 144p</label>
+            <label class="radio"><input type="radio" name="qmp4" value="240"> 240p</label>
+            <label class="radio"><input type="radio" name="qmp4" value="360"> 360p</label>
+            <label class="radio"><input type="radio" name="qmp4" value="480"> 480p</label>
+          </div>
+          <div class="quality-row">
+            <label class="radio"><input type="radio" name="qmp4" value="720"> 720p</label>
+            <label class="radio"><input type="radio" name="qmp4" value="1080" checked> 1080p</label>
+            <label class="radio"><input type="radio" name="qmp4" value="1440"> 1440p (2K)</label>
+            <label class="radio"><input type="radio" name="qmp4" value="2160"> 2160p (4K)</label>
+          </div>
+        </div>
+      </div>
+    </main>
 
-  <footer class="footer">
-    <span>Contact</span>
-    <button id="btn-about" class="btn btn-muted">About</button>
-    <a href="https://t.me/X2_616" target="_blank" class="btn btn-acc">Open Telegram</a>
-    <a href="https://discord.com/users/994817247061225633" target="_blank" class="btn btn-acc">Open Discord User</a>
-    <a href="https://discord.gg/btRCeujadA" target="_blank" class="btn btn-acc">Open Discord Server</a>
-  </footer>
+    <section class="actions">
+      <div class="actions-btns">
+        <button id="btn-dl" class="btn btn-acc btn-lg" type="button" disabled>Download</button>
+        <button id="btn-stop" class="btn btn-acc2 btn-lg" type="button" disabled>Stop</button>
+        <button id="btn-clear" class="btn btn-muted" type="button">Clear log</button>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress"><div id="progress-bar"></div></div>
+        <div id="progress-label" class="progress-label">idle</div>
+      </div>
+    </section>
+
+    <section class="console">
+      <div class="console-title">Console</div>
+      <pre id="log"></pre>
+    </section>
+
+    <footer class="footer">
+      <span class="footer-label">Contact</span>
+      <div class="footer-btns">
+        <button id="btn-about" class="btn btn-muted" type="button">About</button>
+        <a href="https://t.me/X2_616" target="_blank" rel="noopener" class="btn btn-acc">Telegram</a>
+        <a href="https://discord.com/users/994817247061225633" target="_blank" rel="noopener" class="btn btn-acc">Discord</a>
+        <a href="https://discord.gg/btRCeujadA" target="_blank" rel="noopener" class="btn btn-acc">Server</a>
+      </div>
+    </footer>
+  </div>
 
   <div id="modal" class="modal hidden">
     <div class="modal-box">
       <h2 id="modal-title"></h2>
       <p id="modal-body"></p>
       <div class="modal-actions">
-        <button id="modal-no" class="btn btn-muted">No</button>
-        <button id="modal-yes" class="btn btn-acc">Yes</button>
-        <button id="modal-close" class="btn btn-muted hidden">Close</button>
+        <button id="modal-no" class="btn btn-muted" type="button">No</button>
+        <button id="modal-yes" class="btn btn-acc" type="button">Yes</button>
+        <button id="modal-close" class="btn btn-muted hidden" type="button">Close</button>
       </div>
     </div>
   </div>
@@ -100,21 +127,20 @@
     <div class="modal-box search-modal-box">
       <h2>Search YouTube</h2>
       <div class="search-input-row">
-        <input id="search-query" type="text" placeholder="Video name…">
-        <button id="btn-search-run" class="btn btn-acc">Search</button>
+        <input id="search-query" type="text" placeholder="Video name…" autocomplete="off">
+        <button id="btn-search-run" class="btn btn-acc" type="button">Search</button>
       </div>
       <div id="search-status" class="search-status">Type a name and hit Search</div>
       <div id="search-results" class="search-results-panel"></div>
       <div class="modal-actions">
-        <button id="search-modal-close" class="btn btn-muted">Close</button>
+        <button id="search-modal-close" class="btn btn-muted" type="button">Close</button>
       </div>
     </div>
   </div>
 
   <script>
-    // Set via window.__API_BASE__ or meta; default empty = same origin (local) or configure on Vercel.
     window.APP = {
-      version: "1.1.0",
+      version: "1.2.0",
       github: "https://github.com/Afrsto/X2mate",
       apiBase: (typeof window.__API_BASE__ === "string" ? window.__API_BASE__ : "") || "",
     };
