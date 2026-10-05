@@ -37,9 +37,72 @@ except ImportError:
 _FFMPEG = shutil.which("ffmpeg")
 _FFMPEG_OK = bool(_FFMPEG and os.path.isfile(_FFMPEG))
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 VIDEO_HEIGHTS = (144, 240, 360, 480, 720, 1080, 1440, 2160)
 AUDIO_BITRATES = (64, 96, 128, 160, 192, 256, 320)
+_YOUTUBE_CLIENTS = "android_vr,ios,web_safari,web_embedded"
+_COOKIE_FILE: str | None = None
+
+
+def _init_youtube_cookies() -> str | None:
+    """Write Netscape cookies from env to a temp file for yt-dlp cookiefile."""
+    raw = os.environ.get("YOUTUBE_COOKIES", "").strip()
+    if not raw:
+        b64 = os.environ.get("YOUTUBE_COOKIES_B64", "").strip()
+        if b64:
+            try:
+                raw = base64.b64decode(b64).decode("utf-8")
+            except Exception as exc:
+                print(f"⚠ YOUTUBE_COOKIES_B64 decode failed: {exc}")
+                return None
+    if not raw:
+        return None
+    fd, path = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(raw if raw.endswith("\n") else raw + "\n")
+        print(f"✓ YouTube cookies loaded ({len(raw)} bytes)")
+        return path
+    except Exception as exc:
+        print(f"⚠ failed to write cookie file: {exc}")
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+        return None
+
+
+def _cleanup_cookie_file() -> None:
+    if _COOKIE_FILE and os.path.isfile(_COOKIE_FILE):
+        try:
+            os.unlink(_COOKIE_FILE)
+        except OSError:
+            pass
+
+
+def _is_bot_block(msg: str) -> bool:
+    low = msg.lower()
+    return any(
+        x in low
+        for x in (
+            "sign in to confirm",
+            "confirm you're not a bot",
+            "confirm you’re not a bot",
+            "not a bot",
+            "bot detection",
+        )
+    )
+
+
+def _ytdlp_error(msg: str) -> str:
+    if _is_bot_block(msg):
+        print("⚠ Server IP blocked by YouTube; refresh YOUTUBE_COOKIES on Railway.")
+        return (
+            "YouTube blocked this server (bot check). "
+            "Set YOUTUBE_COOKIES on Railway with a fresh Netscape cookies.txt export."
+        )
+    return msg
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -47,6 +110,7 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 _TEMP_ROOT = Path(tempfile.mkdtemp(prefix="x2mate_"))
+_COOKIE_FILE = _init_youtube_cookies()
 
 
 def _cleanup_temp_root() -> None:
@@ -54,6 +118,7 @@ def _cleanup_temp_root() -> None:
 
 
 atexit.register(_cleanup_temp_root)
+atexit.register(_cleanup_cookie_file)
 
 
 def _format_bytes(n: int | float | None) -> str:
