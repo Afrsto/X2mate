@@ -8,6 +8,7 @@ frontend config.js API base at this server.
 from __future__ import annotations
 
 import atexit
+import base64
 import os
 import platform
 import re
@@ -98,13 +99,17 @@ def format_duration(seconds) -> str:
     return f"{m}:{sec:02d}"
 
 
-def _base_opts() -> dict:
+def _base_opts(*, skip_download: bool = True) -> dict:
     opts: dict = {
         "quiet": True,
         "no_warnings": True,
-        "skip_download": True,
         "noplaylist": True,
+        "extractor_args": {"youtube": {"player_client": [_YOUTUBE_CLIENTS]}},
     }
+    if skip_download:
+        opts["skip_download"] = True
+    if _COOKIE_FILE:
+        opts["cookiefile"] = _COOKIE_FILE
     if _FFMPEG:
         opts["ffmpeg_location"] = os.path.dirname(_FFMPEG)
     return opts
@@ -136,8 +141,11 @@ def estimate_download_size(yt_url: str, fmt: str, quality: str) -> int | None:
     opts["format"] = selector
     if sort:
         opts["format_sort"] = sort
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(yt_url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(yt_url, download=False)
+    except DownloadError as e:
+        raise RuntimeError(_ytdlp_error(str(e))) from e
 
     duration = None
     try:
@@ -263,14 +271,13 @@ def search(query: str, limit: int = 12) -> list[dict]:
     q = (query or "").strip()
     if not q:
         raise ValueError("empty search query")
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "extract_flat": "in_playlist",
-        "skip_download": True,
-    }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(f"ytsearch{limit}:{q}", download=False)
+    opts = _base_opts()
+    opts["extract_flat"] = "in_playlist"
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(f"ytsearch{limit}:{q}", download=False)
+    except DownloadError as e:
+        raise RuntimeError(_ytdlp_error(str(e))) from e
     out: list[dict] = []
     for e in (info or {}).get("entries") or []:
         if not e:
@@ -317,17 +324,16 @@ def download_file(
         raise InterruptedError
 
     outtmpl = os.path.join(out_dir, dest_base + ".%(ext)s")
-    opts: dict = {
-        "outtmpl": outtmpl,
-        "noprogress": True,
-        "quiet": True,
-        "no_warnings": True,
-        "retries": 3,
-        "fragment_retries": 3,
-        "overwrites": True,
-    }
-    if _FFMPEG:
-        opts["ffmpeg_location"] = os.path.dirname(_FFMPEG)
+    opts = _base_opts(skip_download=False)
+    opts.update(
+        {
+            "outtmpl": outtmpl,
+            "noprogress": True,
+            "retries": 3,
+            "fragment_retries": 3,
+            "overwrites": True,
+        }
+    )
 
     if fmt == "mp3":
         selector, sort = _format_selector(fmt, quality)
@@ -381,7 +387,7 @@ def download_file(
         msg = str(e)
         if stop.is_set() or "abort" in msg.lower():
             raise InterruptedError
-        raise RuntimeError(msg) from e
+        raise RuntimeError(_ytdlp_error(msg)) from e
 
     if not os.path.isfile(final):
         raise RuntimeError(f"Download finished but file not found:\n{final}")

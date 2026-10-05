@@ -29,6 +29,15 @@ Docker image with ffmpeg — see [`backend/Dockerfile`](backend/Dockerfile) and 
 
 > **Render note:** Creating a new Render Web Service currently requires a payment card on the account (`dashboard.render.com/billing`). Until then the API runs on Railway at the URL above.
 
+### YouTube cookies (Railway)
+
+If YouTube returns a bot check on the server IP, set a Railway secret:
+
+- `YOUTUBE_COOKIES` — full Netscape `cookies.txt` from a logged-in browser (extension export), **or**
+- `YOUTUBE_COOKIES_B64` — same file, base64-encoded
+
+The backend writes this to a temp file on boot and passes it to yt-dlp. Refresh cookies periodically if downloads start failing again.
+
 ### Local
 
 ```powershell
