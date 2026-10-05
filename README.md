@@ -8,14 +8,14 @@ YouTube → **M4A** / **MP4** web downloader.
 | [`backend/`](backend/) | Flask + yt-dlp API (Docker + ffmpeg) |
 
 **Live frontend:** https://x2mate.vercel.app  
-**Live API:** https://x2mate-api-production.up.railway.app
+**Live API:** https://x2mate-api-production-bcfe.up.railway.app
 
 ## Frontend (Vercel)
 
 Root directory: `frontend`. Build injects the API URL from env:
 
 ```text
-X2MATE_API_URL=https://x2mate-api-production.up.railway.app
+X2MATE_API_URL=https://x2mate-api-production-bcfe.up.railway.app
 ```
 
 ```powershell
