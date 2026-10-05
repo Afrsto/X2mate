@@ -1,6 +1,6 @@
 (() => {
   const $ = (s) => document.querySelector(s);
-  const API_BASE = (window.APP && window.APP.apiBase) || "";
+  const API_BASE = ((window.APP && window.APP.apiBase) || "").replace(/\/$/, "");
   const urlEl = $("#url");
   const logEl = $("#log");
   const progBar = $("#progress-bar");
@@ -10,10 +10,14 @@
   const modal = $("#modal");
   const modalTitle = $("#modal-title");
   const modalBody = $("#modal-body");
-  const modalSearch = $("#modal-search");
   const modalYes = $("#modal-yes");
   const modalNo = $("#modal-no");
   const modalClose = $("#modal-close");
+  const searchModal = $("#search-modal");
+  const searchQuery = $("#search-query");
+  const searchStatus = $("#search-status");
+  const searchResults = $("#search-results");
+  const btnSearchRun = $("#btn-search-run");
 
   let fmt = "mp3";
   let running = false;
@@ -21,6 +25,8 @@
   let pollTimer = null;
   let modalResolve = null;
   let seenLogCount = 0;
+  let searchBusy = false;
+  let statusRetries = 0;
 
   function log(msg) {
     logEl.textContent += msg + "\n";
@@ -51,13 +57,11 @@
     $("#quality-mp4").classList.toggle("hidden", fmt !== "mp4");
   }
 
-  function showModal(title, body, { yesNo = true, searchHtml = null } = {}) {
+  function showModal(title, body, { yesNo = true } = {}) {
     return new Promise((resolve) => {
       modalResolve = resolve;
       modalTitle.textContent = title;
       modalBody.textContent = body;
-      modalSearch.innerHTML = searchHtml || "";
-      modalSearch.classList.toggle("hidden", !searchHtml);
       modalYes.classList.toggle("hidden", !yesNo);
       modalNo.classList.toggle("hidden", !yesNo);
       modalClose.classList.toggle("hidden", yesNo);
@@ -78,13 +82,26 @@
   modalClose.addEventListener("click", () => closeModal(null));
 
   async function api(path, opts = {}) {
-    const res = await fetch(API_BASE + path, {
-      headers: { "Content-Type": "application/json" },
-      ...opts,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || res.statusText);
-    return data;
+    if (!API_BASE && location.hostname !== "127.0.0.1" && location.hostname !== "localhost") {
+      throw new Error("Backend not configured");
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
+    try {
+      const res = await fetch(API_BASE + path, {
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        ...opts,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    } catch (e) {
+      if (e.name === "AbortError") throw new Error("Request timed out (backend may be waking up)");
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   function triggerBrowserDownload(id) {
@@ -96,9 +113,23 @@
     a.remove();
   }
 
+  function setSearchStatus(text, kind = "") {
+    searchStatus.textContent = text;
+    searchStatus.className = "search-status" + (kind ? " " + kind : "");
+  }
+
   async function refreshStatus() {
+    if (!API_BASE) {
+      $("#sys-status").textContent = "backend not configured";
+      btnDl.disabled = true;
+      return;
+    }
     try {
+      if (statusRetries > 0) {
+        $("#sys-status").textContent = "Connecting to backend…";
+      }
       const s = await api("/api/status");
+      statusRetries = 0;
       const parts = [];
       if (s.ytdlp_ok) parts.push(`yt-dlp ${s.ytdlp_ver} ✓`);
       else parts.push("yt-dlp ✗");
@@ -108,10 +139,12 @@
       $("#sys-status").textContent = parts.join("  ·  ");
       btnDl.disabled = !s.ytdlp_ok || running;
     } catch {
-      $("#sys-status").textContent = API_BASE
-        ? "API unreachable — set API_BASE_URL / start backend"
-        : "status unavailable";
-      if (API_BASE) btnDl.disabled = true;
+      statusRetries += 1;
+      $("#sys-status").textContent =
+        statusRetries <= 3
+          ? "Connecting to backend…"
+          : "API unreachable — backend may be sleeping";
+      btnDl.disabled = true;
     }
   }
 
@@ -152,6 +185,10 @@
   async function startDownload() {
     const url = urlEl.value.trim();
     if (!url) return;
+    if (!API_BASE) {
+      log("✗ Backend not configured");
+      return;
+    }
 
     running = true;
     btnDl.disabled = true;
@@ -209,47 +246,86 @@
     }
   }
 
-  async function openSearch() {
-    const q = urlEl.value.trim();
-    if (!q) return;
+  function openSearch() {
+    searchResults.innerHTML = "";
+    setSearchStatus("Type a name and hit Search");
+    searchQuery.value = "";
+    searchModal.classList.remove("hidden");
+    setTimeout(() => searchQuery.focus(), 50);
+  }
+
+  function closeSearch() {
+    searchModal.classList.add("hidden");
+  }
+
+  async function runSearch() {
+    if (searchBusy) return;
+    const q = searchQuery.value.trim();
+    if (!q) {
+      setSearchStatus("Enter a video name", "warn");
+      return;
+    }
+    if (!API_BASE) {
+      setSearchStatus("Backend not configured — set API URL first", "err");
+      return;
+    }
+
+    searchBusy = true;
+    btnSearchRun.disabled = true;
+    searchResults.innerHTML = "";
+    setSearchStatus("Searching…", "info");
+
     try {
       const data = await api("/api/search", {
         method: "POST",
         body: JSON.stringify({ query: q }),
       });
-      const html = data.results
+      const results = data.results || [];
+      if (!results.length) {
+        setSearchStatus("No results", "warn");
+        return;
+      }
+      setSearchStatus(`${results.length} result(s) — click one to select`);
+      searchResults.innerHTML = results
         .map(
           (r) => `
-        <div class="search-item" data-url="${r.url}">
-          <img src="${r.thumbnail}" alt="">
+        <div class="search-item" data-url="${escapeAttr(r.url)}" data-title="${escapeAttr(r.title)}">
+          <img src="${escapeAttr(r.thumbnail || "")}" alt="" loading="lazy">
           <div>
             <div class="search-item-title">${escapeHtml(r.title)}</div>
-            <div class="search-item-sub">${escapeHtml(r.uploader || "")} ${r.duration_label || ""}</div>
+            <div class="search-item-sub">${escapeHtml(r.uploader || "")}${r.duration_label ? " · " + escapeHtml(r.duration_label) : ""}</div>
           </div>
         </div>`
         )
         .join("");
-      await showModal("Search YouTube", `Results for: ${q}`, {
-        yesNo: false,
-        searchHtml: html,
-      });
     } catch (e) {
-      await showModal("Search failed", e.message, { yesNo: false });
+      setSearchStatus("Search failed: " + e.message, "err");
+    } finally {
+      searchBusy = false;
+      btnSearchRun.disabled = false;
     }
   }
 
   function escapeHtml(s) {
     const d = document.createElement("div");
-    d.textContent = s;
+    d.textContent = s == null ? "" : String(s);
     return d.innerHTML;
   }
 
-  modalSearch.addEventListener("click", (e) => {
+  function escapeAttr(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  searchResults.addEventListener("click", (e) => {
     const item = e.target.closest(".search-item");
     if (!item) return;
     urlEl.value = item.dataset.url;
-    log(`── selected: ${item.querySelector(".search-item-title").textContent}`);
-    closeModal(null);
+    log(`── selected: ${item.dataset.title}`);
+    closeSearch();
   });
 
   document.querySelectorAll(".seg-btn").forEach((b) => {
@@ -257,6 +333,15 @@
   });
 
   $("#btn-search").addEventListener("click", openSearch);
+  btnSearchRun.addEventListener("click", runSearch);
+  searchQuery.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runSearch();
+    }
+  });
+  $("#search-modal-close").addEventListener("click", closeSearch);
+
   btnDl.addEventListener("click", startDownload);
   btnStop.addEventListener("click", async () => {
     if (jobId) {
@@ -278,11 +363,12 @@
   log("✓ ready — paste a YouTube link…");
   if (API_BASE) {
     log(`── API: ${API_BASE}`);
-  } else if (/vercel\.app$/i.test(location.hostname) || location.hostname !== "127.0.0.1") {
+    $("#sys-status").textContent = "Connecting to backend…";
+  } else if (/vercel\.app$/i.test(location.hostname) || (location.hostname !== "127.0.0.1" && location.hostname !== "localhost")) {
     log("⚠ No backend URL set. Host backend/ and set window.__API_BASE__ in config.js");
     $("#sys-status").textContent = "backend not configured";
     btnDl.disabled = true;
   }
   refreshStatus();
-  setInterval(refreshStatus, 30000);
+  setInterval(refreshStatus, 15000);
 })();

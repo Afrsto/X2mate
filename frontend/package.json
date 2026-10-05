@@ -1,0 +1,7 @@
+{
+  "name": "x2mate-frontend",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/inject-config.js"
+  }
+}

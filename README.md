@@ -5,26 +5,26 @@ YouTube → **M4A** / **MP4** web downloader.
 | Part | Role |
 |------|------|
 | [`frontend/`](frontend/) | Static UI hosted on **Vercel** |
-| [`backend/`](backend/) | Flask + yt-dlp API (host separately — Railway / Render / VPS) |
+| [`backend/`](backend/) | Flask + yt-dlp API on **Render** (Docker + ffmpeg) |
+
+**Live:** https://x2mate.vercel.app
 
 ## Frontend (Vercel)
 
+Root directory: `frontend`. Build injects the API URL from env:
+
+```text
+X2MATE_API_URL=https://your-render-service.onrender.com
+```
+
 ```powershell
 cd frontend
-npx vercel --prod
+npx vercel --prod --scope x2-salah
 ```
 
-Or connect this GitHub repo in the Vercel dashboard with **Root Directory** = `frontend` and team scope matching your account.
+## Backend (Render)
 
-Without a backend URL, the UI loads but downloads/search show that the API is unreachable. Set the API in [`frontend/config.js`](frontend/config.js):
-
-```js
-window.__API_BASE__ = "https://your-backend.example.com";
-```
-
-## Backend
-
-See [`backend/README.md`](backend/README.md).
+See [`backend/README.md`](backend/README.md). Blueprint: [`render.yaml`](render.yaml).
 
 ## Contacts
 

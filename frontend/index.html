@@ -88,11 +88,25 @@
     <div class="modal-box">
       <h2 id="modal-title"></h2>
       <p id="modal-body"></p>
-      <div id="modal-search" class="search-results hidden"></div>
       <div class="modal-actions">
         <button id="modal-no" class="btn btn-muted">No</button>
         <button id="modal-yes" class="btn btn-acc">Yes</button>
         <button id="modal-close" class="btn btn-muted hidden">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="search-modal" class="modal hidden">
+    <div class="modal-box search-modal-box">
+      <h2>Search YouTube</h2>
+      <div class="search-input-row">
+        <input id="search-query" type="text" placeholder="Video name…">
+        <button id="btn-search-run" class="btn btn-acc">Search</button>
+      </div>
+      <div id="search-status" class="search-status">Type a name and hit Search</div>
+      <div id="search-results" class="search-results-panel"></div>
+      <div class="modal-actions">
+        <button id="search-modal-close" class="btn btn-muted">Close</button>
       </div>
     </div>
   </div>

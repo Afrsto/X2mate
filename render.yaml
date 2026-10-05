@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: x2mate-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      - key: PORT
+        value: "10000"

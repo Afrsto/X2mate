@@ -1,3 +1,5 @@
 {
+  "buildCommand": "node scripts/inject-config.js",
+  "outputDirectory": ".",
   "cleanUrls": true
 }
