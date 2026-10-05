@@ -1,0 +1,5 @@
+{
+  "buildCommand": "node frontend/scripts/inject-config.js",
+  "outputDirectory": "frontend",
+  "cleanUrls": true
+}
