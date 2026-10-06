@@ -12,11 +12,13 @@ YouTube → **M4A** / **MP4** web downloader.
 
 ## Frontend (Vercel)
 
-Root directory: `frontend`. Build injects the API URL from env:
+Root directory: `frontend`. Build injects the API URL from [`frontend/api-url.txt`](frontend/api-url.txt) (preferred) or env:
 
 ```text
 X2MATE_API_URL=https://x2mate-api-production-bcfe.up.railway.app
 ```
+
+A local-only tool under `API/` (gitignored) can update `api-url.txt` on GitHub so Vercel picks up a new backend URL without dashboard edits.
 
 ```powershell
 cd frontend

@@ -2,3 +2,4 @@ flask>=3.0
 flask-cors>=4.0
 yt-dlp[default]>=2026.8.19
 gunicorn>=22.0
+mutagen>=1.47

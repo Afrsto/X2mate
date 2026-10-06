@@ -215,19 +215,19 @@
         log(`── quality adjusted → ${quality}`);
       }
 
-      const est = await api("/api/estimate", {
-        method: "POST",
-        body: JSON.stringify({ url, fmt, quality }),
-      });
+      const sizeLabel = probe.size_label || "unknown";
+      const qualityLabel =
+        probe.quality_label ||
+        (fmt === "mp3" ? `${quality} kbps (M4A)` : `${quality}p (MP4)`);
       const ok = await showModal(
         "Confirm download",
-        `Estimated download size: ${est.size_label}\nQuality: ${est.quality_label}\n\nDo you want to download this file?`
+        `Estimated download size: ${sizeLabel}\nQuality: ${qualityLabel}\n\nDo you want to download this file?`
       );
       if (!ok) throw new Error("cancelled");
 
       const fmtLabel = fmt === "mp3" ? "M4A" : "MP4";
       log(`── format:  ${fmtLabel}  quality=${quality}`);
-      log(`── size:    ${est.size_label}`);
+      log(`── size:    ${sizeLabel}`);
       log("── save:    browser Downloads");
 
       const job = await api("/api/download", {

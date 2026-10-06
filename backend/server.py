@@ -34,10 +34,18 @@ except ImportError:
     _YTDLP_OK = False
     _YTDLP_VER = "?"
 
+try:
+    from mutagen.mp4 import MP4
+
+    _MUTAGEN_OK = True
+except ImportError:
+    MP4 = None  # type: ignore
+    _MUTAGEN_OK = False
+
 _FFMPEG = shutil.which("ffmpeg")
 _FFMPEG_OK = bool(_FFMPEG and os.path.isfile(_FFMPEG))
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 VIDEO_HEIGHTS = (144, 240, 360, 480, 720, 1080, 1440, 2160)
 AUDIO_BITRATES = (64, 96, 128, 160, 192, 256, 320)
 _YOUTUBE_CLIENTS = [
@@ -176,6 +184,136 @@ def format_duration(seconds) -> str:
     return f"{m}:{sec:02d}"
 
 
+def _vtt_to_lyrics(text: str) -> str:
+    lines_out: list[str] = []
+    seen: set[str] = set()
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.upper().startswith("WEBVTT"):
+            continue
+        if line.startswith("NOTE") or line.startswith("STYLE") or line.startswith("REGION"):
+            continue
+        if re.match(r"^\d+$", line):
+            continue
+        if re.search(r"\d{2}:\d{2}:\d{2}[\.,]\d{3}\s*-->", line):
+            continue
+        if re.search(r"\d{2}:\d{2}[\.,]\d{3}\s*-->", line):
+            continue
+        clean = re.sub(r"<[^>]+>", "", line).strip()
+        if not clean or clean in seen:
+            continue
+        seen.add(clean)
+        lines_out.append(clean)
+    return "\n".join(lines_out).strip()
+
+
+def _subtitle_paths_from_info(info: dict | None) -> list[Path]:
+    paths: list[Path] = []
+    if not info:
+        return paths
+    requested = info.get("requested_subtitles") or {}
+    if isinstance(requested, dict):
+        for _lang, meta in requested.items():
+            if not isinstance(meta, dict):
+                continue
+            fp = meta.get("filepath") or meta.get("file")
+            if fp and os.path.isfile(fp):
+                paths.append(Path(fp))
+    return paths
+
+
+def _find_subtitle_file(
+    out_dir: str, dest_base: str, info: dict | None = None
+) -> Path | None:
+    from_info = _subtitle_paths_from_info(info)
+    if from_info:
+        from_info.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return from_info[0]
+
+    base = Path(out_dir)
+    exts = (".vtt", ".srt", ".ttml", ".srv3")
+    found: list[Path] = []
+    for pat in (
+        f"{dest_base}*.vtt",
+        f"{dest_base}*.srt",
+        f"{dest_base}*.ttml",
+        f"{dest_base}*.srv3",
+    ):
+        found.extend(base.glob(pat))
+    if not found:
+        try:
+            cutoff = time.time() - 600
+            for p in base.iterdir():
+                if (
+                    p.is_file()
+                    and p.suffix.lower() in exts
+                    and p.stat().st_mtime >= cutoff
+                ):
+                    found.append(p)
+        except OSError:
+            pass
+    if not found:
+        return None
+
+    def _rank(p: Path) -> tuple[int, float]:
+        name = p.name.lower()
+        auto = 1 if (".auto." in name or name.endswith(".auto.vtt")) else 0
+        return (auto, -p.stat().st_mtime)
+
+    found.sort(key=_rank)
+    return found[0]
+
+
+def _embed_lyrics_m4a(m4a_path: str, lyrics: str, log) -> bool:
+    if not lyrics.strip():
+        return False
+    if not _MUTAGEN_OK or MP4 is None:
+        log("⚠ mutagen missing — cannot embed lyrics")
+        return False
+    try:
+        audio = MP4(m4a_path)
+        audio["\xa9lyr"] = [lyrics]
+        audio.save()
+        return True
+    except Exception as e:
+        log(f"⚠ lyrics embed failed: {e}")
+        return False
+
+
+def _embed_lyrics_after_download(
+    out_dir: str,
+    dest_base: str,
+    final: str,
+    log,
+    info: dict | None = None,
+) -> None:
+    sub = _find_subtitle_file(out_dir, dest_base, info=info)
+    if not sub:
+        log("⚠ no lyrics/captions found")
+        return
+    try:
+        raw = sub.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        log(f"⚠ could not read captions: {e}")
+        return
+    lyrics = _vtt_to_lyrics(raw)
+    if not lyrics:
+        log("⚠ captions empty after cleanup")
+        return
+    if _embed_lyrics_m4a(final, lyrics, log):
+        log(f"── lyrics embedded ({sub.name})")
+    try:
+        for p in Path(out_dir).glob(f"{dest_base}.*"):
+            if p.suffix.lower() in (".vtt", ".srt", ".ttml", ".srv3"):
+                p.unlink(missing_ok=True)
+        if sub.exists() and sub.suffix.lower() in (".vtt", ".srt", ".ttml", ".srv3"):
+            sub.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def _base_opts(*, skip_download: bool = True) -> dict:
     opts: dict = {
         "quiet": True,
@@ -210,25 +348,14 @@ class _Abort(Exception):
     pass
 
 
-def estimate_download_size(yt_url: str, fmt: str, quality: str) -> int | None:
-    if not _YTDLP_OK:
-        raise RuntimeError("yt-dlp is not installed.")
-    selector, sort = _format_selector(fmt, quality)
-    opts = _base_opts()
-    opts["format"] = selector
-    if sort:
-        opts["format_sort"] = sort
+def estimate_size_from_info(info: dict | None, fmt: str, quality: str) -> int | None:
+    """Estimate bytes from an already-fetched yt-dlp info dict (no network)."""
+    if not info:
+        return None
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(yt_url, download=False)
-    except DownloadError as e:
-        raise RuntimeError(_ytdlp_error(str(e))) from e
-
-    duration = None
-    try:
-        duration = float((info or {}).get("duration") or 0) or None
+        duration = float(info.get("duration") or 0) or 0.0
     except (TypeError, ValueError):
-        duration = None
+        duration = 0.0
 
     def _one(entry: dict | None) -> int:
         if not entry:
@@ -245,19 +372,81 @@ def estimate_download_size(yt_url: str, fmt: str, quality: str) -> int | None:
         except (TypeError, ValueError):
             tbr = 0.0
         try:
-            dur = float(entry.get("duration") or 0) or duration or 0.0
+            dur = float(entry.get("duration") or 0) or duration
         except (TypeError, ValueError):
-            dur = duration or 0.0
+            dur = duration
         if tbr > 0 and dur > 0:
             return int(tbr * 1000.0 / 8.0 * dur)
         return 0
 
-    req = (info or {}).get("requested_formats") or []
-    if req:
-        total = sum(_one(x) for x in req)
-    else:
-        total = _one(info)
-    return total if total > 0 else None
+    formats = info.get("formats") or []
+    if fmt == "mp3":
+        try:
+            want = int(quality)
+        except (TypeError, ValueError):
+            want = 160
+        best = None
+        best_abr = -1.0
+        for f in formats:
+            acodec = f.get("acodec") or "none"
+            vcodec = f.get("vcodec") or "none"
+            if acodec == "none":
+                continue
+            if vcodec != "none" and f.get("height"):
+                continue
+            try:
+                abr = float(f.get("abr") or f.get("tbr") or 0)
+            except (TypeError, ValueError):
+                abr = 0.0
+            if abr <= want + 32 and abr >= best_abr:
+                best_abr = abr
+                best = f
+        n = _one(best)
+        if n > 0:
+            return n
+        if want > 0 and duration > 0:
+            return int(want * 1000.0 / 8.0 * duration)
+        return None
+
+    try:
+        want_h = int(quality)
+    except (TypeError, ValueError):
+        want_h = 1080
+    best_v = None
+    best_h = -1
+    best_a = None
+    best_abr = -1.0
+    for f in formats:
+        h = f.get("height")
+        vcodec = f.get("vcodec") or "none"
+        acodec = f.get("acodec") or "none"
+        if isinstance(h, int) and h > 0 and h <= want_h and vcodec != "none":
+            if h >= best_h:
+                best_h = h
+                best_v = f
+        if acodec != "none" and (vcodec == "none" or not f.get("height")):
+            try:
+                abr = float(f.get("abr") or f.get("tbr") or 0)
+            except (TypeError, ValueError):
+                abr = 0.0
+            if abr >= best_abr:
+                best_abr = abr
+                best_a = f
+    total = _one(best_v) + _one(best_a)
+    if total > 0:
+        return total
+    if best_v:
+        n = _one(best_v)
+        if n > 0:
+            return n
+    return None
+
+
+def estimate_download_size(yt_url: str, fmt: str, quality: str) -> int | None:
+    if not _YTDLP_OK:
+        raise RuntimeError("yt-dlp is not installed.")
+    caps = probe_capabilities(yt_url)
+    return estimate_size_from_info(caps.get("info"), fmt, quality)
 
 
 def probe_capabilities(yt_url: str) -> dict:
@@ -295,8 +484,7 @@ def probe_capabilities(yt_url: str) -> dict:
     }
 
 
-def resolve_quality(yt_url: str, fmt: str, quality: str) -> tuple[str, str | None]:
-    caps = probe_capabilities(yt_url)
+def resolve_quality_from_caps(caps: dict, fmt: str, quality: str) -> tuple[str, str | None]:
     if fmt == "mp3":
         want = int(quality)
         max_abr = caps["max_abr"]
@@ -329,6 +517,11 @@ def resolve_quality(yt_url: str, fmt: str, quality: str) -> tuple[str, str | Non
             f"Highest available quality: {_height_label(best)}."
         )
     return quality, None
+
+
+def resolve_quality(yt_url: str, fmt: str, quality: str) -> tuple[str, str | None]:
+    caps = probe_capabilities(yt_url)
+    return resolve_quality_from_caps(caps, fmt, quality)
 
 
 def get_title(yt_url: str, log) -> str:
@@ -412,17 +605,34 @@ def download_file(
             "retries": 3,
             "fragment_retries": 3,
             "overwrites": True,
+            "writethumbnail": True,
+            "concurrent_fragment_downloads": 8,
         }
     )
+
+    thumb_pps = [{"key": "FFmpegThumbnailsConvertor", "format": "jpg"}]
+    meta_then_cover = [
+        {"key": "FFmpegMetadata"},
+        {"key": "EmbedThumbnail"},
+    ]
 
     if fmt == "mp3":
         selector, sort = _format_selector(fmt, quality)
         opts["format"] = selector
         opts["format_sort"] = sort
+        opts["postprocessors"] = thumb_pps + meta_then_cover
+        opts["writesubtitles"] = True
+        opts["writeautomaticsub"] = True
+        opts["subtitleslangs"] = ["en", "en-US", "en-GB", "ar", "ar-SA"]
+        opts["subtitlesformat"] = "vtt/best"
+        opts["sleep_interval_subtitles"] = 1
+        opts["ignoreerrors"] = True
+        log("── audio container: m4a (cover + lyrics)")
     else:
         selector, _ = _format_selector(fmt, quality)
         opts["format"] = selector
         opts["merge_output_format"] = "mp4"
+        opts["postprocessors"] = thumb_pps + meta_then_cover
 
     def hook(d: dict):
         if stop.is_set():
@@ -441,6 +651,7 @@ def download_file(
     log(f"── yt-dlp starting ({'M4A' if fmt == 'mp3' else 'MP4'} @ {quality})")
     prog(2)
 
+    info: dict | None = None
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(yt_url, download=True)
@@ -470,7 +681,38 @@ def download_file(
         raise RuntimeError(_ytdlp_error(msg)) from e
 
     if not os.path.isfile(final):
-        raise RuntimeError(f"Download finished but file not found:\n{final}")
+        matches = sorted(
+            Path(out_dir).glob(dest_base + ".*"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        matches = [
+            p
+            for p in matches
+            if p.suffix.lower() in (".m4a", ".mp4", ".mp3", ".webm", ".aac")
+        ]
+        if matches:
+            final = str(matches[0])
+        else:
+            raise RuntimeError(f"Download finished but file not found:\n{final}")
+
+    if fmt == "mp3":
+        prog(97)
+        _embed_lyrics_after_download(out_dir, dest_base, final, log, info=info)
+
+    # Rename from video-id basename to sanitized title when available
+    title = sanitize((info or {}).get("title") or "")
+    if title and title != dest_base:
+        ext = Path(final).suffix
+        target = Path(out_dir) / (title + ext)
+        if not target.exists():
+            try:
+                Path(final).rename(target)
+                final = str(target)
+                log(f"── renamed: {target.name}")
+            except OSError:
+                pass
+
     prog(100)
     return final
 
@@ -526,12 +768,21 @@ def api_probe():
     if not url:
         return jsonify({"error": "missing url"}), 400
     try:
-        eff_q, downgrade_msg = resolve_quality(url, fmt, quality)
+        caps = probe_capabilities(url)
+        eff_q, downgrade_msg = resolve_quality_from_caps(caps, fmt, quality)
+        size = estimate_size_from_info(caps.get("info"), fmt, eff_q)
+        if fmt == "mp3":
+            q_txt = f"{eff_q} kbps (M4A)"
+        else:
+            q_txt = _height_label(int(eff_q)) + " (MP4)"
         return jsonify(
             {
                 "quality": eff_q,
                 "downgrade_msg": downgrade_msg,
-                "title": sanitize(probe_capabilities(url).get("title") or ""),
+                "title": sanitize(caps.get("title") or ""),
+                "size": size,
+                "size_label": _format_bytes(size),
+                "quality_label": q_txt,
             }
         )
     except Exception as e:
@@ -577,8 +828,7 @@ def _run_download(job_id: str, url: str, fmt: str, quality: str):
         job["progress"] = float(v)
 
     try:
-        title = get_title(url, log=log)
-        name = title or vid_id(url)
+        name = vid_id(url)
         dest = download_file(
             url, fmt, quality, str(workdir), name, prog=prog, log=log, stop=stop
         )

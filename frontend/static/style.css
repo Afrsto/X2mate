@@ -26,7 +26,10 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: dark;
+}
 
 body {
   margin: 0;
@@ -70,9 +73,8 @@ body::before {
   flex-wrap: wrap;
   margin: 0 calc(-1 * var(--pad));
   padding: 14px var(--pad);
-  background: rgba(26, 26, 26, 0.85);
+  background: var(--b1);
   border-bottom: 1px solid var(--bdr);
-  backdrop-filter: blur(10px);
 }
 
 .brand {
@@ -117,7 +119,7 @@ body::before {
 }
 
 .panel {
-  background: rgba(34, 34, 34, 0.92);
+  background: var(--b2);
   border: 1px solid var(--bdr);
   border-radius: var(--radius);
   padding: 6px 0 10px;
@@ -224,7 +226,7 @@ input[type="text"]:focus {
   min-height: 36px;
   padding: 4px 8px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg);
 }
 
 .radio input { accent-color: var(--acc); width: 16px; height: 16px; }
@@ -318,7 +320,7 @@ input[type="text"]:focus {
 
 .console {
   flex: 1;
-  background: rgba(26, 26, 26, 0.95);
+  background: var(--b1);
   border: 1px solid var(--bdr);
   border-radius: var(--radius);
   min-height: 200px;
